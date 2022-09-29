@@ -5,7 +5,7 @@
   "main": "index.js",
   "gypfile": true,
   "scripts": {
-    "install": "node-pre-gyp install --fallback-to-build --target_arch=x64 --target_platform=win32"
+    "install": "node-pre-gyp install --fallback-to-build"
   },
   "repository": {
     "type": "git",
