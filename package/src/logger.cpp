@@ -57,10 +57,6 @@ bool logger::log(logger::Severity severity, const std::string& message, int even
     DWORD binDataSize = 0;
     LPVOID binData = NULL;
 
-    const WORD numStrings = 1;
-    LPCSTR strings[numStrings];
-    strings[0] = message.c_str();
-
     HANDLE handle = eventLog->eventLogHandle_;
     DWORD event = eventId;
     WORD type;
@@ -69,11 +65,26 @@ bool logger::log(logger::Severity severity, const std::string& message, int even
         Napi::TypeError::New(env, "Failed to parse severity");
     }
 
-    auto ret = ReportEventA(handle, type, category, eventId, user, numStrings, binDataSize, strings, binData);
+    // Convert UTF-8 string to UTF-16
+    int wideLength = MultiByteToWideChar(CP_UTF8, 0, message.c_str(), -1, nullptr, 0);
+    if (wideLength == 0) {
+        return false;
+    }
+    std::wstring wideMessage(wideLength - 1, L'\0');
+    if (MultiByteToWideChar(CP_UTF8, 0, message.c_str(), -1, wideMessage.data(), wideLength) == 0) {
+        return false;
+    }
+
+    const WORD numStrings = 1;
+    LPCWSTR strings[numStrings];
+    strings[0] = wideMessage.c_str();
+
+    auto ret = ReportEventW(handle, type, category, eventId, user, numStrings, binDataSize, strings, binData);
     if (!ret) { std::cout << logger::getLastErrorAsString() << "\n"; }
 
     return ret;
 }
+
 
 
 void logger::logWorker::Execute() {
@@ -114,7 +125,7 @@ Napi::Value logger::log_wrapped(const Napi::CallbackInfo& info, logger::EventLog
     try {
 
         logger::Severity _severity_ = static_cast<logger::Severity>(severity.Int32Value());
-        auto args = logger::CreateLogArgs(_severity_, message, eventLog, eventId);
+        auto args = logger::CreateLogArgs(_severity_, message.Utf8Value(), eventLog, eventId);
         logger::logWorker *worker = new logger::logWorker(env, &args);
 
         auto promise = worker->GetPromise();
